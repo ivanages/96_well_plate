@@ -5,14 +5,14 @@ import textwrap
 from matplotlib.colors import is_color_like
 
 # Define plate dimensions
-rows = list("ABCDEFGH")
-cols = list(range(1, 13))
+rows = list("ABCDEFGH")  # A to H (8 rows)
+cols = list(range(1, 13))  # 1 to 12 (12 columns)
 
 # Create empty dataframe for well plate layout
 plate_df = pd.DataFrame(index=rows, columns=cols)
 colors_df = pd.DataFrame(index=rows, columns=cols)
 
-# Initialize session state to store category information if it's not already present
+# Initialize session state to store category information
 if 'categories' not in st.session_state:
     st.session_state.categories = []
 
@@ -25,11 +25,11 @@ category_color = st.color_picker("Choose a Color:", "#FFFFFF")  # Default color 
 
 # Function to validate if a color is valid
 def validate_color(color):
-    if color and is_color_like(color):  # Only accept valid colors
+    if color and is_color_like(color):
         return color
     else:
         st.warning(f"Warning: Invalid color selected. Defaulting to white color.")
-        return "#FFFFFF"  # Default to white if any error occurs
+        return "#FFFFFF"
 
 # Select wells for each category
 selected_wells = st.multiselect("Select Wells for Category (e.g., A1, A2, A3)", [f"{r}{c}" for r in rows for c in cols])
@@ -42,79 +42,62 @@ if st.button("Assign to Wells") and category_name and selected_wells:
 # Option to reset category assignment for a well
 reset_well = st.selectbox("Select a well to reset", [f"{r}{c}" for r in rows for c in cols])
 if st.button("Reset Well"):
-    # Reset the category for the selected well
     for category in st.session_state.categories:
         if reset_well in category["wells"]:
             category["wells"].remove(reset_well)
             st.success(f"Well {reset_well} has been reset.")
             break
-
-    # Remove categories that no longer have any wells
     st.session_state.categories = [category for category in st.session_state.categories if category["wells"]]
 
-# Display all previous category assignments only if there are still wells assigned
+# Display all previous category assignments
 for category in st.session_state.categories:
-    if category["wells"]:  # Only display categories with assigned wells
+    if category["wells"]:  
         st.write(f"Category: {category['name']}, Color: {category['color']}, Wells: {', '.join(category['wells'])}")
 
-# Display plate layout
-fig, ax = plt.subplots(figsize=(8, 6))
+# Adjust figure size and margins to ensure all wells are fully visible
+fig, ax = plt.subplots(figsize=(10, 7))  
 
 # Set grid ticks and labels
-ax.set_xticks(range(len(cols)))
-ax.set_xticklabels(cols)
-ax.set_yticks(range(len(rows)))
-ax.set_yticklabels(rows)
-ax.invert_yaxis()
+ax.set_xticks(range(1, len(cols) + 1))
+ax.set_yticks(range(1, len(rows) + 1))
 
-# Parameters for circle size
-well_radius = 0.4  # Radius of the circle
+# Move column labels to the top
+ax.set_xticklabels(cols, fontsize=12)  
+ax.xaxis.set_label_position('top')  # Move labels to the top
+ax.xaxis.tick_top()  
 
-# Maximum characters for text to fit in one line
-max_chars_per_line = 6
+# Set row labels in the correct order (A to H) without reversing the order of wells
+ax.set_yticklabels(rows[::-1], fontsize=12)
 
-# Vertical offset to increase line spacing
-line_spacing = 0.15  # Increase this value to create more space between lines
+# Set the axis limits to prevent wells from going out of bounds
+ax.set_xlim(0.5, len(cols) + 0.5)
+ax.set_ylim(0.5, len(rows) + 0.5)
+ax.set_aspect("equal")
 
-# Iterate over each well and assign the appropriate color and text based on the categories
+# Well size
+well_radius = 0.4  
+
+# Iterate over each well and assign colors
 for i, row in enumerate(rows):
     for j, col in enumerate(cols):
-        well_text = plate_df.loc[row, col]
-        color = colors_df.loc[row, col] if colors_df.loc[row, col] else "#FFFFFF"  # Default to white if no color assigned
+        color = "#FFFFFF"
+        well_text = ""  # Default to no text
 
-        # Loop through all categories and check if the current well belongs to one of them
+        # Check if well is assigned to a category
         for category in st.session_state.categories:
             if f"{row}{col}" in category["wells"]:
-                color = category["color"]  # Use the valid color from the category
-                well_text = category["name"]
-                break  # Stop once a category is found for this well
-
-        # Ensure that the color is valid (not NaN)
-        if not is_color_like(color):
-            color = "#FFFFFF"  # Set to white if the color is invalid
+                color = category["color"]
+                well_text = category["name"]  # Store category name for text label
+                break  
 
         # Draw the well as a circle
-        circle = plt.Circle((j + 0.5, i + 0.5), well_radius, color=color, ec='black')
+        circle = plt.Circle((j + 1, len(rows) - i), well_radius, color=color, ec='black', lw=1)
         ax.add_patch(circle)
 
-        # Handle text wrapping by splitting into lines only if the well text is a valid string
-        if isinstance(well_text, str) and well_text.strip():  # Check if well_text is a non-empty string
-            # Wrap text properly using textwrap
-            wrapped_text = textwrap.fill(well_text, width=max_chars_per_line)
-
-            # Split the wrapped text into lines
-            lines = wrapped_text.split('\n')
-
-            # Adjust the font size based on the number of lines
-            font_size = max(10 - len(lines), 6)  # Ensure text is not too small
-
-            # Calculate total height of the text block
-            total_text_height = len(lines) * line_spacing
-
-            # Center text vertically in the well
-            for line_num, line in enumerate(lines):
-                ax.text(j + 0.5, i + 0.5 + (line_num * line_spacing) - total_text_height / 2, 
-                        line, ha='center', va='center', fontsize=font_size, fontname='Arial')
+        # Add text label inside the well (Arial font, non-bold)
+        ax.text(j + 1, len(rows) - i, 
+                "\n".join(textwrap.wrap(well_text, width=5)),  # Wrap text for long names
+                ha='center', va='center', fontsize=8, color='black', fontname="Arial")
 
 # Show the plot
 st.pyplot(fig)
