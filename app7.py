@@ -16,6 +16,9 @@ colors_df = pd.DataFrame(index=rows, columns=cols)
 if 'categories' not in st.session_state:
     st.session_state.categories = []
 
+if 'history' not in st.session_state:
+    st.session_state.history = []
+
 # Streamlit UI
 st.title("96-Well Plate Planner")
 
@@ -37,7 +40,19 @@ selected_wells = st.multiselect("Select Wells for Category (e.g., A1, A2, A3)", 
 # Add the selected wells to the category when the button is pressed
 if st.button("Assign to Wells") and category_name and selected_wells:
     valid_color = validate_color(category_color)
-    st.session_state.categories.append({"name": category_name, "color": valid_color, "wells": selected_wells})
+    new_category = {"name": category_name, "color": valid_color, "wells": selected_wells}
+    st.session_state.history.append(st.session_state.categories.copy())  # Save history for undo
+    st.session_state.categories.append(new_category)
+
+# Undo last change
+if st.button("Undo Last Change") and st.session_state.history:
+    st.session_state.categories = st.session_state.history.pop()  # Restore last state
+
+# Reset everything
+if st.button("Reset Everything"):
+    st.session_state.categories = []
+    st.session_state.history = []
+    st.success("All assignments have been reset.")
 
 # Option to reset category assignment for a well
 reset_well = st.selectbox("Select a well to reset", [f"{r}{c}" for r in rows for c in cols])
